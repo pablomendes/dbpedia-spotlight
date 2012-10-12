@@ -98,13 +98,15 @@ class TwoStepDisambiguator(val candidateSearcher: CandidateSearcher,
                 try {
                     candidates = candidateSearcher.getCandidates(sfOcc.surfaceForm).asScala //.map(r => r.uri)
                 } catch {
-                    case e: ItemNotFoundException => LOG.debug(e);
+                    case e: ItemNotFoundException => {
+                        if (LOG.isDebugEnabled)
+                            LOG.debug("Error searching candidates.",e)
+                    }
                 }
                 //ATTENTION there is no r.support at this point
                 //TODO if support comes from candidate index, it means c(sf,r).
 
-                //LOG.debug("# candidates for: %s = %s (%s)".format(sfOcc.surfaceForm,candidates.size,candidates))
-                LOG.debug("# candidates for: %s = %s.".format(sfOcc.surfaceForm,candidates.size))
+                if (LOG.isDebugEnabled) LOG.debug("# candidates for: %s = %s.".format(sfOcc.surfaceForm,candidates.size))
                 candidates.foreach( r => allCandidates.add(r))
                 acc + (sfOcc -> candidates.toList)
             });
@@ -134,8 +136,12 @@ class TwoStepDisambiguator(val candidateSearcher: CandidateSearcher,
         try {
             hits = query(paragraph.text, allCandidates.toArray)
         } catch {
-            case e: Exception => throw new SearchException(e);
-            case r: RuntimeException => throw new SearchException(r);
+            case e: SearchException => {
+                if (LOG.isDebugEnabled) LOG.debug("Error searching context.",e)
+                return Map[SurfaceFormOccurrence,List[DBpediaResourceOccurrence]]()
+            }
+            case e: Exception => throw new SearchException(e)
+            case r: RuntimeException => throw new SearchException(r)
             case _ => LOG.error("Unknown really scary error happened. You can cry now.")
         }
         // LOG.debug("Hits (%d): %s".format(hits.size, hits.map( sd => "%s=%s".format(sd.doc,sd.score) ).mkString(",")))

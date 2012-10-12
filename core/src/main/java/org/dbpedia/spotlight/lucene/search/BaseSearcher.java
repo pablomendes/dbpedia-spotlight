@@ -173,14 +173,14 @@ public class BaseSearcher implements Closeable {
             TopScoreDocCollector collector = TopScoreDocCollector.create(n, false);
             //TimeLimitingCollector collector = new TimeLimitingCollector(tCollector, timeout);  //TODO try to bring this back later
             mSearcher.search(query, filter, collector);
-            //mSearcher.
             hits = collector.topDocs().scoreDocs;
             long end = System.nanoTime();
-            LOG.debug(String.format("Done search in %f ms. hits.length=%d",(end-start) / 1000000.0, hits.length));
+            if (LOG.isDebugEnabled())
+                LOG.debug(String.format("Done search in %f ms. hits.length=%d",(end-start) / 1000000.0, hits.length));
         } catch (TimeLimitingCollector.TimeExceededException timedOutException) {
             throw new TimeoutException("Timeout (>"+timeout+"ms searching for surface form "+query.toString(),timedOutException);
-        } catch (Exception e) {
-            throw new SearchException("Error searching for surface form "+query.toString(),e);
+        } catch (IOException e) {
+            throw new SearchException("Error searching "+query.toString(),e);
         }
         //LOG.debug(hits.length+" hits found.");
         return hits;

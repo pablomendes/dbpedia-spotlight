@@ -31,6 +31,7 @@ public class ServerUtils {
             msg.append(e.toString());
             msg.append("\n");
         }
+        msg.append(exception.getCause());
         return msg.toString();
     }
 
