@@ -254,7 +254,7 @@ public class SpotlightConfiguration {
             LOG.warn("Cannot find stopwords file '" + stopWordsFile + "'. Using default Lucene Analyzer StopWords.");
         } else {
             try {
-                BufferedReader bufferedReader = new BufferedReader(new FileReader(stopWordsFile.trim()));
+                BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(new FileInputStream(stopWordsFile.trim()), "UTF-8"));
                 String line = null;
                 stopWords = new HashSet<String>();
                 while ((line = bufferedReader.readLine()) != null) {
