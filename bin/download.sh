@@ -1,14 +1,14 @@
 #!/bin/bash
 #+------------------------------------------------------------------------------------------------------------------------------+
 #| DBpedia Spotlight - Download script                                                                                          |
-#| @author @sandroacoelho, @rafaharo                                                                                                       |
+#| @author @sandroacoelho, @rafaharo, @iavraam                                                                                                       |
 #+------------------------------------------------------------------------------------------------------------------------------+
 PROGNAME=$(basename $0)
 
 #Config parameters (adjust according your target language and folder)
-export lang_i18n=es
-export language=spanish
-export dbpedia_workspace=/usr/local/spotlight
+export lang_i18n=el
+export language=greek
+export dbpedia_workspace=/var/local/spotlight
 export dbpedia_version=3.8
 
 # error_exit function by William Shotts. http://stackoverflow.com/questions/64786/error-handling-in-bash
@@ -235,6 +235,28 @@ fi
 mv index.tgz  $dbpedia_workspace/dbpedia_data/original
 mv spot_selector.tgz  $dbpedia_workspace/dbpedia_data/original
 
+bzip2 -d $dbpedia_workspace/dbpedia_data/original/dbpedia/$lang_i18n/disambiguations_$lang_i18n.nt.bz2
+/usr/bin/python unicodeEscape.py $dbpedia_workspace/dbpedia_data/original/dbpedia/$lang_i18n/disambiguations_$lang_i18n.nt
+rm $dbpedia_workspace/dbpedia_data/original/dbpedia/$lang_i18n/disambiguations_$lang_i18n.nt
+mv $dbpedia_workspace/dbpedia_data/original/dbpedia/$lang_i18n/disambiguations_$lang_i18n.nt.new $dbpedia_workspace/dbpedia_data/original/dbpedia/$lang_i18n/disambiguations_$lang_i18n.nt
+bzip2 -z -k $dbpedia_workspace/dbpedia_data/original/dbpedia/$lang_i18n/disambiguations_$lang_i18n.nt
 
+bzip2 -d $dbpedia_workspace/dbpedia_data/original/dbpedia/$lang_i18n/instance_types_$lang_i18n.nt.bz2
+/usr/bin/python unicodeEscape.py $dbpedia_workspace/dbpedia_data/original/dbpedia/$lang_i18n/instance_types_$lang_i18n.nt
+rm $dbpedia_workspace/dbpedia_data/original/dbpedia/$lang_i18n/instance_types_$lang_i18n.nt
+mv $dbpedia_workspace/dbpedia_data/original/dbpedia/$lang_i18n/instance_types_$lang_i18n.nt.new $dbpedia_workspace/dbpedia_data/original/dbpedia/$lang_i18n/instance_types_$lang_i18n.nt
+bzip2 -z -k $dbpedia_workspace/dbpedia_data/original/dbpedia/$lang_i18n/instance_types_$lang_i18n.nt
+
+bzip2 -d $dbpedia_workspace/dbpedia_data/original/dbpedia/$lang_i18n/labels_$lang_i18n.nt.bz2
+/usr/bin/python unicodeEscape.py $dbpedia_workspace/dbpedia_data/original/dbpedia/$lang_i18n/labels_$lang_i18n.nt
+rm $dbpedia_workspace/dbpedia_data/original/dbpedia/$lang_i18n/labels_$lang_i18n.nt
+mv $dbpedia_workspace/dbpedia_data/original/dbpedia/$lang_i18n/labels_$lang_i18n.nt.new $dbpedia_workspace/dbpedia_data/original/dbpedia/$lang_i18n/labels_$lang_i18n.nt
+bzip2 -z -k $dbpedia_workspace/dbpedia_data/original/dbpedia/$lang_i18n/labels_$lang_i18n.nt
+
+bzip2 -d $dbpedia_workspace/dbpedia_data/original/dbpedia/$lang_i18n/redirects_$lang_i18n.nt.bz2
+/usr/bin/python unicodeEscape.py $dbpedia_workspace/dbpedia_data/original/dbpedia/$lang_i18n/redirects_$lang_i18n.nt
+rm $dbpedia_workspace/dbpedia_data/original/dbpedia/$lang_i18n/redirects_$lang_i18n.nt
+mv $dbpedia_workspace/dbpedia_data/original/dbpedia/$lang_i18n/redirects_$lang_i18n.nt.new $dbpedia_workspace/dbpedia_data/original/dbpedia/$lang_i18n/redirects_$lang_i18n.nt
+bzip2 -z -k $dbpedia_workspace/dbpedia_data/original/dbpedia/$lang_i18n/redirects_$lang_i18n.nt
 
 
