@@ -2,16 +2,14 @@
 # Adjust the paths here if you don't. This script is meant more as a step-by-step guidance than a real automated run-all.
 # If this is your first time running the script, we advise you to copy/paste commands from here, closely watching the messages
 # and the final output.
-#
-# @author maxjakob, pablomendes
 
 export lang_i18n=en
 export OUTPUT_LOCATION=../dbpedia_data/data/output/$lang_i18n
 export INDEX_CONFIG_FILE=../conf/indexing.properties
 
-JAVA_XMX=14g
+JAVA_XMX=5g
 
-# you have to run maven2 from the module that contains the indexing classes
+# you have to run maven from the module that contains the indexing classes
 cd ../index
 # the indexing process will generate files in the directory below
 if [ -e OUTPUT_LOCATION  ]; then
@@ -21,11 +19,11 @@ else
 fi
 
 # first step is to extract valid URIs, synonyms and surface forms from DBpedia
-mvn scala:run -Dlauncher=ExtractCandidateMap "-DjavaOpts.Xmx=$JAVA_XMX" "-DaddArgs=$INDEX_CONFIG_FILE"
+mvn3 scala:run -Dlauncher=ExtractCandidateMap "-DjavaOpts.Xmx=$JAVA_XMX" "-DaddArgs=$INDEX_CONFIG_FILE"
 
 # now we collect parts of Wikipedia dump where DBpedia resources occur and output those occurrences as Tab-Separated-Values
 echo -e "Parsing Wikipedia dump to extract occurrences...\n"
-mvn scala:run -Dlauncher=ExtractOccsFromWikipedia "-DjavaOpts.Xmx=$JAVA_XMX" "-DaddArgs=$INDEX_CONFIG_FILE|$OUTPUT_LOCATION/occs.tsv"
+mvn3 scala:run -Dlauncher=ExtractOccsFromWikipedia "-DjavaOpts.Xmx=$JAVA_XMX" "-DaddArgs=$INDEX_CONFIG_FILE|$OUTPUT_LOCATION/occs.tsv"
 
 # (recommended) sorting the occurrences by URI will speed up context merging during indexing
 echo -e "Sorting occurrences to speed up indexing...\n"
@@ -42,28 +40,30 @@ cp $OUTPUT_LOCATION/surfaceForms.tsv $OUTPUT_LOCATION/surfaceForms-fromTitRedDis
 cat $OUTPUT_LOCATION/surfaceForms-fromTitRedDis.tsv $OUTPUT_LOCATION/surfaceForms-fromOccs.tsv > $OUTPUT_LOCATION/surfaceForms.tsv
 
 # now that we have our set of surfaceForms, we can build a simple dictionary-based spotter from them
-mvn scala:run -Dlauncher=IndexLingPipeSpotter "-DjavaOpts.Xmx=$JAVA_XMX" "-DaddArgs=$INDEX_CONFIG_FILE"
+mvn3 scala:run -Dlauncher=IndexLingPipeSpotter "-DjavaOpts.Xmx=$JAVA_XMX" "-DaddArgs=$INDEX_CONFIG_FILE"
+cp  $OUTPUT_LOCATION/surfaceForms.tsv.spotterDictionary $OUTPUT_LOCATION/spotter.$lang_i18n.dict
 
 set -e
 # create a lucene index out of the occurrences
 echo -e "Creating a context index from occs.tsv...\n"
-mvn scala:run -Dlauncher=IndexMergedOccurrences "-DjavaOpts.Xmx=$JAVA_XMX" "-DaddArgs=$INDEX_CONFIG_FILE|$OUTPUT_LOCATION/occs.uriSorted.tsv"
+mvn3 scala:run -Dlauncher=IndexMergedOccurrences "-DjavaOpts.Xmx=$JAVA_XMX" "-DaddArgs=$INDEX_CONFIG_FILE|$OUTPUT_LOCATION/occs.uriSorted.tsv"
 # NOTE: if you get an out of memory error from the command above, try editing ../index/pom.xml with correct jvmArg and file arguments.
 
 # (optional) make a backup copy of the index before you lose all the time you've put into this
 #cp -R $OUTPUT_LOCATION/index $OUTPUT_LOCATION/index-backup
 # add surface forms to index
 echo -e "Adding Surface Forms to index...\n"
-mvn scala:run -Dlauncher=AddSurfaceFormsToIndex "-DjavaOpts.Xmx=$JAVA_XMX" "-DaddArgs=$INDEX_CONFIG_FILE|$OUTPUT_LOCATION/index"
+mvn3 scala:run -Dlauncher=AddSurfaceFormsToIndex "-DjavaOpts.Xmx=$JAVA_XMX" "-DaddArgs=$INDEX_CONFIG_FILE|$OUTPUT_LOCATION/index"
 # or:
-# mvn scala:run -Dlauncher=CandidateIndexer "-DjavaOpts.Xmx=$JAVA_XMX" "-DaddArgs=$OUTPUT_LOCATION/surfaceForms.tsv|$OUTPUT_LOCATION/candidateIndex|3|case-insensitive|overwrite"
+# mvn3 scala:run -Dlauncher=CandidateIndexer "-DjavaOpts.Xmx=$JAVA_XMX" "-DaddArgs=$OUTPUT_LOCATION/surfaceForms.tsv|$OUTPUT_LOCATION/candidateIndex|3|case-insensitive|overwrite"
 
 # add entity types to index
-mvn scala:run -Dlauncher=AddTypesToIndex "-DjavaOpts.Xmx=$JAVA_XMX" "-DaddArgs=$INDEX_CONFIG_FILE|$OUTPUT_LOCATION/index-withSF"
+mvn3 scala:run -Dlauncher=AddTypesToIndex "-DjavaOpts.Xmx=$JAVA_XMX" "-DaddArgs=$INDEX_CONFIG_FILE|$OUTPUT_LOCATION/index-withSF"
 
 # (optional) reduce index size by unstoring fields (attention: you won't be able to see contents of fields anymore)
-mvn scala:run -Dlauncher=CompressIndex "-DjavaOpts.Xmx=$JAVA_XMX" "-DaddArgs=$INDEX_CONFIG_FILE|10|$OUTPUT_LOCATION/index-withSF-withTypes"
+mvn3 scala:run -Dlauncher=CompressIndex "-DjavaOpts.Xmx=$JAVA_XMX" "-DaddArgs=$INDEX_CONFIG_FILE|10|$OUTPUT_LOCATION/index-withSF-withTypes"
+cp $OUTPUT_LOCATION/tiny.en.index/similarity-thresholds.txt $DBPEDIA_WORKSPACE/data/output/index-withSF-withTypes
 set +e
 
 # train a linker (most simple is based on similarity-thresholds)
-# mvn scala:run -Dlauncher=EvaluateDisambiguationOnly "-DjavaOpts.Xmx=$JAVA_XMX"
+# mvn3 scala:run -Dlauncher=EvaluateDisambiguationOnly "-DjavaOpts.Xmx=$JAVA_XMX"
