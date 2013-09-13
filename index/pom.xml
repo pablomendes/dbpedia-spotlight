@@ -26,7 +26,7 @@
     <parent>
         <artifactId>spotlight</artifactId>
         <groupId>org.dbpedia.spotlight</groupId>
-        <version>0.6</version>
+        <version>0.6.5</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -158,6 +158,54 @@
                 </configuration>
             </plugin>
 
+<<<<<<< HEAD
+=======
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-install-plugin</artifactId>
+                <version>${maven.install.plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>install-weka-jar</id>
+                        <phase>generate-resources</phase>
+                        <goals>
+                            <goal>install-file</goal>
+                        </goals>
+                        <configuration>
+                            <groupId>weka</groupId>
+                            <artifactId>weka</artifactId>
+                            <version>3.7.3</version>
+                            <packaging>jar</packaging>
+                            <file>${basedir}/../lib/weka-trunk.jar</file>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <inherited>true</inherited>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <version>1.1.1</version>
+                <executions>
+                    <execution>
+                        <id>enforce-java-newer-7</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <requireJavaVersion>
+                                    <version>1.7</version>
+                                </requireJavaVersion>
+                            </rules>
+                            <fail>true</fail>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+>>>>>>> 78a1f3efc5b4f797dd3cb96a2196a15d39b26214
         </plugins>
     </build>
 
