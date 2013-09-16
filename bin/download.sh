@@ -124,7 +124,7 @@ function test_languages_array
 function unicodeEscape()
 {
     bzip2 -d $1
-    python unicodeEscape.py $1
+    /usr/bin/python unicodeEscape.py $1
     rm $1
     mv $1".new" $1
     bzip2 -z -k $1
@@ -213,10 +213,10 @@ dl_opennlp_file $lang_i18n "sent.bin" $OPENNLP_DATA/$lang_i18n
 dl_opennlp_file $lang_i18n "token.bin" $OPENNLP_DATA/$lang_i18n
 
 # Run the unicodeEscape.py script
-unicodeEscape $DBPEDIA_DATA/$lang_i18n/disambiguations_$lang_i18n.nt
-unicodeEscape $DBPEDIA_DATA/$lang_i18n/instance_types_$lang_i18n.nt
-unicodeEscape $DBPEDIA_DATA/$lang_i18n/labels_$lang_i18n.nt
-unicodeEscape $DBPEDIA_DATA/$lang_i18n/redirects_$lang_i18n.nt
+unicodeEscape $DBPEDIA_DATA/$lang_i18n/disambiguations_$lang_i18n.nt.bz2
+unicodeEscape $DBPEDIA_DATA/$lang_i18n/instance_types_$lang_i18n.nt.bz2
+unicodeEscape $DBPEDIA_DATA/$lang_i18n/labels_$lang_i18n.nt.bz2
+unicodeEscape $DBPEDIA_DATA/$lang_i18n/redirects_$lang_i18n.nt.bz2
 
 echo -e "\nAll the downloads are done!"
 
