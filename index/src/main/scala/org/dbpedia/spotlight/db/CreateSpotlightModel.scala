@@ -3,17 +3,19 @@ package org.dbpedia.spotlight.db
 import io._
 import java.io.{FileOutputStream, FileInputStream, File}
 import memory.MemoryStore
-import model.Tokenizer
+import model.{TextTokenizer, StringTokenizer, Stemmer}
 import scala.io.Source
 import org.tartarus.snowball.SnowballProgram
-import java.util.Properties
+import java.util.{Locale, Properties}
 import org.dbpedia.spotlight.io.WikipediaHeldoutCorpus
 import org.apache.commons.io.FileUtils
 import opennlp.tools.tokenize.{TokenizerModel, TokenizerME}
 import opennlp.tools.sentdetect.{SentenceModel, SentenceDetectorME}
 import opennlp.tools.postag.{POSModel, POSTaggerME}
-import org.dbpedia.spotlight.spot.opennlp.OpenNLPSpotter
 import opennlp.tools.chunker.ChunkerModel
+import stem.SnowballStemmer
+import tokenize._
+import scala.Some
 
 /**
  * This script creates a Spotlight model folder from the results of
@@ -26,17 +28,19 @@ import opennlp.tools.chunker.ChunkerModel
 
 object CreateSpotlightModel {
 
+  val OPENNLP_FOLDER = "opennlp"
+
   def main(args: Array[String]) {
 
-    val (language: String, rawDataFolder: File, outputFolder: File, opennlpFolder: File, stopwordsFile: File, stemmer: SnowballProgram) = try {
+    val (localeCode: String, rawDataFolder: File, outputFolder: File, opennlpFolder: Option[File], stopwordsFile: File, stemmer: Stemmer) = try {
       (
         args(0),
         new File(args(1)),
         new File(args(2)),
-        new File(args(3)),
+        if (args(3) equals "None") None else Some(new File(args(3))),
         new File(args(4)),
-        if (args(5) equals "None") null else Class.forName("org.tartarus.snowball.ext.%s".format(args(5))).newInstance()
-      )
+        if (args(5) equals "None") new Stemmer() else new SnowballStemmer(args(5))
+        )
     } catch {
       case e: Exception => {
         e.printStackTrace()
@@ -47,6 +51,9 @@ object CreateSpotlightModel {
       }
     }
 
+    val Array(lang, country) = localeCode.split("_")
+    val locale = new Locale(lang, country)
+
     if(!outputFolder.mkdir()) {
       System.err.println("Folder %s already exists, I am too afraid to overwrite it!".format(outputFolder.toString))
       System.exit(1)
@@ -54,42 +61,69 @@ object CreateSpotlightModel {
 
     FileUtils.copyFile(stopwordsFile, new File(outputFolder, "stopwords.list"))
 
-    val opennlpModels = opennlpFolder.listFiles()
-    def getModel(name: String) = opennlpModels.filter(_.getName.endsWith(name)).headOption
 
-    val opennlpOut = new File(outputFolder, "opennlp")
-    opennlpOut.mkdir()
+    if (opennlpFolder.isDefined) {
 
-    try {
-      FileUtils.copyFile(getModel("-sent.bin").get, new File(opennlpOut, "sent.bin"))
-      FileUtils.copyFile(getModel("-token.bin").get, new File(opennlpOut, "token.bin"))
-      FileUtils.copyFile(getModel("-pos-maxent.bin").get, new File(opennlpOut, "pos-maxent.bin"))
+      val opennlpModels = opennlpFolder.get.listFiles()
+      val opennlpOut = new File(outputFolder, OPENNLP_FOLDER)
+      opennlpOut.mkdir()
 
-      getModel("-chunker.bin") match {
-        case Some(model) => FileUtils.copyFile(model, new File(opennlpOut, "chunker.bin"))
-        case _ =>
+      def getModel(name: String) = opennlpModels.filter(_.getName.endsWith(name)).headOption
+
+      try {
+        FileUtils.copyFile(getModel("-token.bin").get, new File(opennlpOut, "token.bin"))
+        FileUtils.copyFile(getModel("-sent.bin").get, new File(opennlpOut, "sent.bin"))
+      } catch {
+        case _: Exception => {
+          System.err.println(
+            """Problem with OpenNLP models:
+              | You need to have at least the following model files in your opennlp folder:
+              | *-sent.bin
+              | *-token.bin
+              |
+              | For the best result, you should also have:
+              | *-chunker.bin
+              | *-pos-maxent.bin
+            """.stripMargin)
+          System.exit(1)
+        }
       }
-    } catch {
-      case _: Exception => {
-        System.err.println(
-          """Problem with OpenNLP models:
-            | You need to have at least the following model files in your opennlp folder:
-            | *-sent.bin
-            | *-token.bin
-            | *-pos-maxent.bin
-            |
-            | For the best result, you should also have:
-            | *-chunker.bin
-          """.stripMargin)
-        System.exit(1)
+
+      try {
+        FileUtils.copyFile(getModel("-pos-maxent.bin").get, new File(opennlpOut, "pos-maxent.bin"))
+      } catch {
+        case _: Exception => //Ignore
       }
+
+      try {
+        getModel("-chunker.bin") match {
+          case Some(model) => FileUtils.copyFile(model, new File(opennlpOut, "chunker.bin"))
+          case _ =>
+        }
+      } catch {
+        case _: Exception => //Ignore
+      }
+
+    }
+
+    val rawTokenizer: StringTokenizer = if (opennlpFolder.isDefined) {
+      val opennlpOut = new File(outputFolder, OPENNLP_FOLDER)
+      val onlpTokenizer = new TokenizerME(new TokenizerModel(new FileInputStream(new File(opennlpOut, "token.bin"))))
+
+      new OpenNLPStringTokenizer(
+        onlpTokenizer,
+        stemmer
+      )
+
+    } else {
+      new LanguageIndependentStringTokenizer(locale, stemmer)
     }
 
 
-    val namespace = if (language.equals("en")) {
+    val namespace = if (locale.getLanguage.equals("en")) {
       "http://dbpedia.org/resource/"
     } else {
-      "http://%s.dbpedia.org/resource/".format(language)
+      "http://%s.dbpedia.org/resource/".format(locale.getLanguage)
     }
 
 
@@ -97,6 +131,7 @@ object CreateSpotlightModel {
     val defaultProperties = new Properties()
     defaultProperties.setProperty("stemmer",   args(5))
     defaultProperties.setProperty("namespace", namespace)
+    defaultProperties.setProperty("locale", localeCode)
 
 
     defaultProperties.store(new FileOutputStream(new File(outputFolder, "model.properties")), null)
@@ -114,10 +149,7 @@ object CreateSpotlightModel {
       new FileInputStream(new File(rawDataFolder, "disambiguations.nt"))
     )
 
-
-    val onlpTokenizer = new TokenizerME(new TokenizerModel(new FileInputStream(new File(opennlpOut, "token.bin"))))
-
-    memoryIndexer.tokenizer = Some(onlpTokenizer)
+    memoryIndexer.tokenizer = Some(rawTokenizer)
     memoryIndexer.addSurfaceForms(
       SurfaceFormSource.fromPigFiles(
         new File(rawDataFolder, "sfAndTotalCounts"),
@@ -135,7 +167,7 @@ object CreateSpotlightModel {
           new File(rawDataFolder, "instanceTypes.tsv")
         else
           null
-        ),
+          ),
         namespace
       )
     )
@@ -155,7 +187,8 @@ object CreateSpotlightModel {
 
     memoryIndexer.addTokenTypes(
       TokenSource.fromPigFile(
-        new File(rawDataFolder, "token_counts")
+        new File(rawDataFolder, "tokenCounts"),
+        additionalTokens = Some(TokenSource.fromSFStore(sfStore, rawTokenizer))
       )
     )
 
@@ -164,7 +197,7 @@ object CreateSpotlightModel {
     memoryIndexer.createContextStore(resStore.size)
     memoryIndexer.addTokenOccurrences(
       TokenOccurrenceSource.fromPigFile(
-        new File(rawDataFolder, "token_counts"),
+        new File(rawDataFolder, "tokenCounts"),
         tokenStore,
         wikipediaToDBpediaClosure,
         resStore
@@ -172,33 +205,31 @@ object CreateSpotlightModel {
     )
     memoryIndexer.writeTokenOccurrences()
 
-    val stopwords = SpotlightModel.loadStopwords(outputFolder)
 
-    //Tune Spotter:
-    val tokenizer: Tokenizer = new DefaultTokenizer(
-      onlpTokenizer,
-      stopwords,
-      stemmer,
-      new SentenceDetectorME(new SentenceModel(new FileInputStream(new File(opennlpOut, "sent.bin")))),
-      new POSTaggerME(new POSModel(new FileInputStream(new File(opennlpOut, "pos-maxent.bin")))),
-      tokenStore
-    )
+    val tokenizer: TextTokenizer = if (opennlpFolder.isDefined) {
+      val opennlpOut = new File(outputFolder, OPENNLP_FOLDER)
+      val oToken = new TokenizerME(new TokenizerModel(new FileInputStream(new File(opennlpOut, "token.bin"))))
+      val oSent = new SentenceDetectorME(new SentenceModel(new FileInputStream(new File(opennlpOut, "sent.bin"))))
 
+      new OpenNLPTokenizer(
+        oToken,
+        Set[String](),
+        stemmer,
+        oSent,
+        null,
+        tokenStore
+      )
 
-    val spotter = new OpenNLPSpotter(
-      Some(new ChunkerModel(new FileInputStream(new File(opennlpOut, "chunker.bin")))),
-      List(),
-      sfStore,
-      stopwords,
-      None,
-      Set("NP", "MWU", "PP"), "N"
-    )
+    } else {
+      new LanguageIndependentTokenizer(Set[String](), stemmer, locale, tokenStore)
+    }
+    val fsaDict = FSASpotter.buildDictionary(sfStore, tokenizer)
 
-    SpotterTuner.tuneOpenNLP(
-      WikipediaHeldoutCorpus.fromFile(new File(rawDataFolder, "test.txt")),
-      tokenizer,
-      spotter,
-      new File(outputFolder, "opennlp_chunker_thresholds.txt")
+    MemoryStore.dump(fsaDict, new File(outputFolder, "fsa_dict.mem"))
+
+    FileUtils.write(
+      new File(outputFolder, "spotter_thresholds.txt"),
+      "1.0 0.2 -0.2 0.1" //Defaults!
     )
 
   }

@@ -12,6 +12,8 @@ import collection.mutable
 import scala.Predef._
 import org.dbpedia.spotlight.util.MathUtil
 import breeze.{numerics, linalg}
+import scala.collection.JavaConversions._
+import scala.collection.mutable.ArrayBuffer
 
 
 /**
@@ -30,7 +32,7 @@ class DBTwoStepDisambiguator(
   tokenStore: TokenTypeStore,
   surfaceFormStore: SurfaceFormStore,
   resourceStore: ResourceStore,
-  candidateSearcher: DBCandidateSearcher,
+  val candidateSearcher: DBCandidateSearcher,
   contextStore: ContextStore,
   mixture: Mixture,
   contextSimilarity: ContextSimilarity
@@ -39,13 +41,10 @@ class DBTwoStepDisambiguator(
   private val LOG = LogFactory.getLog(this.getClass)
 
   /* Tokenizer that may be used for tokenization if the text is not already tokenized. */
-  var tokenizer: Tokenizer = null
+  var tokenizer: TextTokenizer = null
 
   private def getQuery(tokenTypes: Seq[TokenType]): java.util.Map[TokenType, Int]
     = tokenTypes.groupBy(identity).mapValues(_.size).asJava
-
-  private def getQuery(text: Text): java.util.Map[TokenType, Int]
-    = getQuery(text.featureValue[List[Token]]("tokens").get.map{ t: Token => t.tokenType })
 
   /**
    * Calculate the context similarity given the text for all candidates in the set.
@@ -54,9 +53,9 @@ class DBTwoStepDisambiguator(
    * @param candidates the set of candidates for a surface form
    * @return
    */
-  def getContextSimilarityScores(text: Text, candidates: Set[DBpediaResource]): mutable.Map[DBpediaResource, Double] = {
+  def getContextSimilarityScores(tokens: Seq[TokenType], candidates: Set[DBpediaResource]): mutable.Map[DBpediaResource, Double] = {
 
-    val query = getQuery(text)
+    val query = getQuery(tokens)
 
     val contextCounts = candidates.map{ candRes: DBpediaResource =>
       (candRes -> contextStore.getContextCounts(candRes))
@@ -72,6 +71,10 @@ class DBTwoStepDisambiguator(
   //maximum number of considered candidates
   val MAX_CANDIDATES = 20
 
+  //maximum context window in tokens in both directions
+  val MAX_CONTEXT = 250
+
+
   def bestK(paragraph: Paragraph, k: Int): Map[SurfaceFormOccurrence, List[DBpediaResourceOccurrence]] = {
 
     LOG.debug("Running bestK for paragraph %s.".format(paragraph.id))
@@ -86,9 +89,47 @@ class DBTwoStepDisambiguator(
       paragraph.text.setFeature(new Feature("tokens", tokens))
     }
 
+    val sentences = DBSpotter.tokensToSentences(paragraph.text.featureValue[List[Token]]("tokens").get)
+
+    if (sentences.size <= MAX_CONTEXT)
+      bestK_(paragraph, paragraph.getOccurrences().toList, sentences.flatMap(_.map(_.tokenType)), k)
+    else {
+      val occurrenceStack = paragraph.getOccurrences().toBuffer
+      val currentTokens = ArrayBuffer[Token]()
+
+      sentences.flatMap{
+        sentence: List[Token] =>
+
+          currentTokens ++= sentence
+
+          if (currentTokens.size >= MAX_CONTEXT || sentence.equals(sentences.last)) {
+
+            //Take all surface form occurrences within the current token window and remove them afterwards.
+            val sliceOccs = occurrenceStack.takeWhile{ occ: SurfaceFormOccurrence => occ.textOffset <= currentTokens.last.offset}.toList
+            occurrenceStack.remove(0, sliceOccs.size)
+
+            //Remember the tokens and clear the temporary token collection:
+            val sliceTokens = currentTokens.map(_.tokenType)
+            currentTokens.clear()
+
+            //Disambiguate all occs in the current window:
+            Some( bestK_(paragraph, sliceOccs, sliceTokens, k) )
+          } else {
+            None
+          }
+      }.toList.reduce(_ ++ _)
+    }
+  }
+
+
+  def bestK_(paragraph: Paragraph, occurrences: List[SurfaceFormOccurrence], tokens: Seq[TokenType], k: Int): Map[SurfaceFormOccurrence, List[DBpediaResourceOccurrence]] = {
+
+    if (occurrences.size == 0)
+      return Map[SurfaceFormOccurrence, List[DBpediaResourceOccurrence]]()
+
     // step1: get candidates for all surface forms
     var allCandidateResources = Set[DBpediaResource]()
-    val occs = paragraph.occurrences.foldLeft(
+    val occs = occurrences.foldLeft(
       Map[SurfaceFormOccurrence, List[Candidate]]())(
       (acc, sfOcc) => {
 
@@ -120,7 +161,10 @@ class DBTwoStepDisambiguator(
 
 
     // step2: query once for the paragraph context, get scores for each candidate resource
-    val contextScores = getContextSimilarityScores(paragraph.text, allCandidateResources)
+    val contextScores = if (contextStore != null)
+      getContextSimilarityScores(tokens, allCandidateResources)
+    else
+      mutable.Map[DBpediaResource, Double]()
 
     // pick the best k for each surface form
     occs.keys.foldLeft(Map[SurfaceFormOccurrence, List[DBpediaResourceOccurrence]]())( (acc, aSfOcc) => {
@@ -138,7 +182,11 @@ class DBTwoStepDisambiguator(
         case _ =>
       }
 
-      val nilContextScore = contextSimilarity.nilScore(getQuery(aSfOcc.context))
+      val nilContextScore = if (contextStore != null)
+        contextSimilarity.nilScore(getQuery(tokens))
+      else
+        0.0
+
       eNIL.setFeature(new Score("P(c|e)", nilContextScore))
       eNIL.setFeature(new Score("P(e)",   MathUtil.ln( 1 / surfaceFormStore.getTotalAnnotatedCount.toDouble ) )) //surfaceFormStore.getTotalAnnotatedCount = total number of entity mentions
       val nilEntityScore = mixture.getScore(eNIL)
@@ -195,12 +243,14 @@ class DBTwoStepDisambiguator(
       acc + (aSfOcc -> candOccs)
     })
 
+
   }
+
 
   @throws(classOf[InputException])
   def disambiguate(paragraph: Paragraph): List[DBpediaResourceOccurrence] = {
     // return first from each candidate set
-    bestK(paragraph, 5)
+    bestK(paragraph, MAX_CANDIDATES)
       .filter(kv =>
       kv._2.nonEmpty)
       .map( kv =>

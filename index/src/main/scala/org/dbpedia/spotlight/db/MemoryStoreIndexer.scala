@@ -1,6 +1,7 @@
 package org.dbpedia.spotlight.db
 
 import memory._
+import model.StringTokenizer
 import org.apache.commons.lang.NotImplementedException
 import java.lang.{Short, String}
 
@@ -13,9 +14,7 @@ import java.util.{Map, Set}
 import java.io.File
 import org.dbpedia.spotlight.model._
 import scala.{Array, Int}
-import java.util
 import collection.mutable
-import opennlp.tools.tokenize.Tokenizer
 
 /**
  * Implements memory-based indexing. The memory stores are serialized and deserialized using Kryo.
@@ -37,7 +36,7 @@ class MemoryStoreIndexer(val baseDir: File)
     throw new NotImplementedException()
   }
 
-  def ngram(sf: String, tokenizer: Tokenizer): Seq[String] = {
+  def ngram(sf: String, tokenizer: StringTokenizer): Seq[String] = {
     tokenizer.tokenize(sf)
   }
 
@@ -45,7 +44,7 @@ class MemoryStoreIndexer(val baseDir: File)
     (1 to grams.size-1).flatMap( grams.sliding(_) )
   }
 
-  var tokenizer: Option[Tokenizer] = None
+  var tokenizer: Option[StringTokenizer] = None
 
   def addSurfaceForms(sfCount: Map[SurfaceForm, (Int, Int)]) {
 

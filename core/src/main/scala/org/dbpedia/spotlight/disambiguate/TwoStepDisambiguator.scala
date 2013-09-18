@@ -21,7 +21,7 @@ package org.dbpedia.spotlight.disambiguate
 import org.apache.commons.logging.LogFactory
 import org.dbpedia.spotlight.lucene.disambiguate.MergedOccurrencesDisambiguator
 import java.lang.UnsupportedOperationException
-import scalaj.collection.Imports._
+import scala.collection.JavaConverters._
 import org.apache.lucene.search.similar.MoreLikeThis
 import org.dbpedia.spotlight.exceptions.{ItemNotFoundException, SearchException, InputException}
 import org.apache.lucene.search.{ScoreDoc, Explanation}
@@ -75,12 +75,12 @@ class TwoStepDisambiguator(val candidateSearcher: CandidateSearcher,
         val filter = new org.apache.lucene.search.TermsFilter() //TODO can use caching? val filter = new FieldCacheTermsFilter(DBpediaResourceField.CONTEXT.toString,allowedUris)
         allowedUris.foreach( u => filter.addTerm(new Term(DBpediaResourceField.URI.toString,u.uri)) )
 
-        val mlt = new MoreLikeThis(contextSearcher.mReader);
+        val mlt = new MoreLikeThis(contextSearcher.mReader)
         mlt.setFieldNames(Array(DBpediaResourceField.CONTEXT.toString))
         mlt.setAnalyzer(contextSearcher.getLuceneManager.defaultAnalyzer)
         //LOG.debug("Analyzer %s".format(contextLuceneManager.defaultAnalyzer))
         //val inputStream = new ByteArrayInputStream(context.getBytes("UTF-8"));
-        val query = mlt.like(new StringReader(context), DBpediaResourceField.CONTEXT.toString);
+        val query = mlt.like(new StringReader(context), DBpediaResourceField.CONTEXT.toString)
         LOG.debug("Running query.")
         contextSearcher.getHits(query, nHits, 50000, filter)
     }
@@ -125,7 +125,7 @@ class TwoStepDisambiguator(val candidateSearcher: CandidateSearcher,
 
         // step1: get candidates for all surface forms
         //       (TODO here building allCandidates directly, but could extract from occs)
-        var allCandidates = CompactHashSet[DBpediaResource]();
+        var allCandidates = CompactHashSet[DBpediaResource]()
         val occs = getCandidates(paragraph,allCandidates)
 
         val s2 = System.nanoTime()
@@ -134,8 +134,8 @@ class TwoStepDisambiguator(val candidateSearcher: CandidateSearcher,
         try {
             hits = query(paragraph.text, allCandidates.toArray)
         } catch {
-            case e: Exception => throw new SearchException(e);
-            case r: RuntimeException => throw new SearchException(r);
+            case e: Exception => throw new SearchException(e)
+            case r: RuntimeException => throw new SearchException(r)
             case _ => LOG.error("Unknown really scary error happened. You can cry now.")
         }
         // LOG.debug("Hits (%d): %s".format(hits.size, hits.map( sd => "%s=%s".format(sd.doc,sd.score) ).mkString(",")))
@@ -147,7 +147,7 @@ class TwoStepDisambiguator(val candidateSearcher: CandidateSearcher,
             var score = hit.score
             //TODO can mix here the scores: c(s,r) / c(r)
             acc + (resource.uri -> (resource,score))
-        });
+        })
         val e2 = System.nanoTime()
         //LOG.debug("Scores (%d): %s".format(scores.size, scores))
 
@@ -167,18 +167,17 @@ class TwoStepDisambiguator(val candidateSearcher: CandidateSearcher,
                             resource, //TODO this resource may contain the c(s,r) that can be used for conditional prob.
                             supportConfidence)
                     })
-                    .sortBy(o => o.contextualScore) //TODO should be final score
-                .reverse
+                    .sortBy(o => -o.contextualScore) //TODO should be final score
                 .take(k)
             acc + (aSfOcc -> candOccs)
-        });
+        })
 
        // LOG.debug("Reranked (%d)".format(r.size))
 
         r
     }
 
-    def name() : String = {
+    def name = {
         "2step+"+disambiguator.name
     }
 
