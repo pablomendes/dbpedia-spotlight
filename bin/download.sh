@@ -6,15 +6,11 @@ PROGNAME=$(basename $0)
 
 ##### Config parameters (adjust according your target language and folder)
 
-# Windows workspace path example
-#export dbpedia_workspace="E:/Spotlight"
-
-# Linux workspace path example
-export dbpedia_workspace="/home/ubuntu/Spotlight"
-
 export lang_i18n=pt
 export language=portuguese
 export all_languages=(en bg ca cs de el es fr hu it ko pl pt ru sl tr)
+export dbpedia_workspace="E:/SpotlightTest"
+#export dbpedia_workspace="/home/ubuntu/Spotlight"
 export dbpedia_version=3.8
 RELEASE_VERSION="0.6"
 
@@ -127,13 +123,11 @@ function test_languages_array
 
 function unicodeEscape()
 {
-    bunzip2 -df $1/$2
-    # Run the unicodeEscape.py script.
-    local new_file_name=$(echo "$2" | sed "s/\([^\.]*\)\(\.bz2\)/\1/g")
-    /usr/bin/python unicodeEscape.py "$1"/"$new_file_name"
-    rm $1/$new_file_name
-    mv $1/$new_file_name".new" $1/$new_file_name
-    bzip2 -z -k $1/$new_file_name
+    bzip2 -d $1
+    /usr/bin/python unicodeEscape.py $1
+    rm $1
+    mv $1".new" $1
+    bzip2 -z -k $1
 }
 
 #+------------------------------------------------------------------------------------------------------------------------------+
@@ -187,42 +181,42 @@ echo "Getting Wikipedia Dump..."
 #bunzip2 -fk $WIKIPEDIA_DATA/$lang_i18n/$lang_i18n"wiki-latest-pages-articles.xml.bz2" > $WIKIPEDIA_DATA/$lang_i18n/$lang_i18n"wiki-latest-pages-articles.xml"
 
 echo "Getting CoOccurrenceBased Spot Selector Statistics..."
-#download_file $GITHUB_DOWNLOADS2 "spotter.dict" $RESOURCES_DATA
+download_file $GITHUB_DOWNLOADS2 "spotter.dict" $RESOURCES_DATA
 
 echo "Getting Spot Selector..."
-#download_file $SPOTLIGHT_DOWNLOADS "spot_selector.tgz" $RESOURCES_DATA
-#tar -xvf $RESOURCES_DATA/spot_selector.tgz --force-local -C $RESOURCES_DATA
+download_file $SPOTLIGHT_DOWNLOADS "spot_selector.tgz" $RESOURCES_DATA
+tar -xvf $RESOURCES_DATA/spot_selector.tgz --force-local -C $RESOURCES_DATA
 
 echo "Getting the tiny Lucene Context Index..."
 # Hard coded version release to 0.5. The URL to version 0.6 has a folder and getting it from GitHub is not working
-#wget -N --no-check-certificate https://raw.github.com/dbpedia-spotlight/dbpedia-spotlight/release-0.5/dist/src/deb/control/data/usr/share/dbpedia-spotlight/index.tgz --directory-prefix=$RESOURCES_DATA
+wget -N --no-check-certificate https://raw.github.com/dbpedia-spotlight/dbpedia-spotlight/release-0.5/dist/src/deb/control/data/usr/share/dbpedia-spotlight/index.tgz --directory-prefix=$RESOURCES_DATA
 # download_file $GITHUB_DOWNLOADS2 "index.tgz" $RESOURCES_DATA
-#tar -xvf $RESOURCES_DATA/index.tgz --force-local -C $OUTPUT_DATA/$lang_i18n
+tar -xvf $RESOURCES_DATA/index.tgz --force-local -C $OUTPUT_DATA/$lang_i18n
 
 echo "Copying Hidden Markov Model to the resources folder..."
-#cp ../core/src/main/resources/pos-en-general-brown.HiddenMarkovModel $RESOURCES_DATA
+cp ../core/src/main/resources/pos-en-general-brown.HiddenMarkovModel $RESOURCES_DATA
 
 echo "Getting the stop words list... (direct link to the pt version at the moment)"
-#download_file $GITHUB_DOWNLOADS1/$lang_i18n "stopwords.list" $RESOURCES_DATA/$lang_i18n
+download_file $GITHUB_DOWNLOADS1/$lang_i18n "stopwords.list" $RESOURCES_DATA/$lang_i18n
 
 echo "Getting the URI blacklisted patterns list... (direct link to the pt version at the moment)"
-#download_file $GITHUB_DOWNLOADS1/$lang_i18n "blacklistedURIPatterns."$lang_i18n".list" $RESOURCES_DATA/$lang_i18n
+download_file $GITHUB_DOWNLOADS1/$lang_i18n "blacklistedURIPatterns."$lang_i18n".list" $RESOURCES_DATA/$lang_i18n
 
 echo "Getting Apache OpenNLP models..."
 # The download_opennlp_file function parameters are: 1) language 2) model_name 3) where/to/save
-#dl_opennlp_file $lang_i18n "chunker.bin" $OPENNLP_DATA/$lang_i18n
-#dl_opennlp_file $lang_i18n "location.bin" $OPENNLP_DATA/$lang_i18n
-#dl_opennlp_file $lang_i18n "organization.bin" $OPENNLP_DATA/$lang_i18n
-#dl_opennlp_file $lang_i18n "person.bin" $OPENNLP_DATA/$lang_i18n
-#dl_opennlp_file $lang_i18n "pos-maxent.bin" $OPENNLP_DATA/$lang_i18n
-#dl_opennlp_file $lang_i18n "sent.bin" $OPENNLP_DATA/$lang_i18n
-#dl_opennlp_file $lang_i18n "token.bin" $OPENNLP_DATA/$lang_i18n
+dl_opennlp_file $lang_i18n "chunker.bin" $OPENNLP_DATA/$lang_i18n
+dl_opennlp_file $lang_i18n "location.bin" $OPENNLP_DATA/$lang_i18n
+dl_opennlp_file $lang_i18n "organization.bin" $OPENNLP_DATA/$lang_i18n
+dl_opennlp_file $lang_i18n "person.bin" $OPENNLP_DATA/$lang_i18n
+dl_opennlp_file $lang_i18n "pos-maxent.bin" $OPENNLP_DATA/$lang_i18n
+dl_opennlp_file $lang_i18n "sent.bin" $OPENNLP_DATA/$lang_i18n
+dl_opennlp_file $lang_i18n "token.bin" $OPENNLP_DATA/$lang_i18n
 
-# The unicodeEscape parameters are: 1) path/to/dir 2) bz2_file_name
-unicodeEscape $DBPEDIA_DATA/$lang_i18n "disambiguations_$lang_i18n.nt.bz2"
-unicodeEscape $DBPEDIA_DATA/$lang_i18n "instance_types_$lang_i18n.nt.bz2"
-unicodeEscape $DBPEDIA_DATA/$lang_i18n "labels_$lang_i18n.nt.bz2"
-unicodeEscape $DBPEDIA_DATA/$lang_i18n "redirects_$lang_i18n.nt.bz2"
+# Run the unicodeEscape.py script
+unicodeEscape $DBPEDIA_DATA/$lang_i18n/disambiguations_$lang_i18n.nt.bz2
+unicodeEscape $DBPEDIA_DATA/$lang_i18n/instance_types_$lang_i18n.nt.bz2
+unicodeEscape $DBPEDIA_DATA/$lang_i18n/labels_$lang_i18n.nt.bz2
+unicodeEscape $DBPEDIA_DATA/$lang_i18n/redirects_$lang_i18n.nt.bz2
 
 echo -e "\nAll the downloads are done!"
 
